@@ -2,22 +2,21 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"net/url"
 	"os"
+	"strings"
+	"syscall"
 
-	"net/http"
+	"golang.org/x/crypto/ssh/terminal"
 )
-
-type Config struct {
-	User     string
-	Password string
-}
 
 type Identifier struct {
 	IdentifierType string `json:"type"` //"type": "m.id.user"
@@ -180,17 +179,25 @@ func reset(baseURL, who, pass string, client *http.Client) error {
 	return err
 }
 
+func getSensitive() string {
+	bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
+	if err != nil {
+		log.Fatal(err)
+	}
+	password := string(bytePassword)
+
+	return strings.TrimSpace(password)
+}
+
 func main() {
 	//
 	serverUrl := flag.String("url", "http://localhost:8008", "The URL that points towards the matrix server")
-	configPath := flag.String("config", "", "Path to config file that holds credientials")
 
 	isDeactivate := flag.Bool("deactivate", false, "Deactivate an account, requires --user")
 	isList := flag.Bool("list", false, "List all users, requires no arguments")
 	isReset := flag.Bool("reset", false, "Reset users account with new password, needs --user and --pass")
 	isQuery := flag.Bool("query", false, "Queries a user and gets its current information, needs --user")
-	user := flag.String("user", "", "The user account to be acted upon (if required)")
-	pass := flag.String("pass", "", "A new password to be set to a users account (with --reset)")
+	targetUser := flag.String("target", "", "The user account to be acted upon (if required)")
 
 	flag.Parse()
 
@@ -199,50 +206,32 @@ func main() {
 		log.Fatal("Please enter valid URL")
 	}
 
-	if len(*configPath) == 0 {
-		flag.PrintDefaults()
-		log.Fatal("Please enter config file")
-	}
-
-	configFile, err := os.Open(*configPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer configFile.Close()
-
-	configContents, err := ioutil.ReadAll(configFile)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	var config Config
-	err = json.Unmarshal(configContents, &config)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	if !*isDeactivate && !*isList && !*isReset && !*isQuery {
 		flag.PrintDefaults()
 		log.Fatal("Please specify an option")
 
 	}
 
-	if len(*user) == 0 && (*isDeactivate || *isReset || *isQuery) {
+	if len(*targetUser) == 0 && (*isDeactivate || *isReset || *isQuery) {
 		flag.PrintDefaults()
-		log.Fatal("You need --user to use the option")
+		log.Fatal("You need --target to use the option")
 
 	}
 
-	if len(*pass) == 0 && (*isReset) {
-		flag.PrintDefaults()
-		log.Fatal("You need --pass to use the option")
+	reader := bufio.NewReader(os.Stdin)
 
-	}
+	fmt.Print("Admin username: ")
+	username, _ := reader.ReadString('\n')
+	username = strings.TrimSpace(username)
+
+	fmt.Print("Admin password: ")
+	password := getSensitive()
+	fmt.Print("\n")
 
 	serverString := u.Scheme + "://" + u.Host
-	userString := "@" + *user + ":" + u.Host
+	userString := "@" + *targetUser + ":" + u.Host
 
-	token, err := login(serverString, config.User, config.Password)
+	token, err := login(serverString, username, password)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -261,7 +250,8 @@ func main() {
 	} else if *isQuery {
 		err = query(serverString, userString, client)
 	} else if *isReset {
-		err = reset(serverString, userString, *pass, client)
+		fmt.Print("Enter new user password for ", *targetUser, ": ")
+		err = reset(serverString, userString, getSensitive(), client)
 	}
 
 	if err != nil {
