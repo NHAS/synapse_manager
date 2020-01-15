@@ -193,10 +193,10 @@ func main() {
 	//
 	serverUrl := flag.String("url", "http://localhost:8008", "The URL that points towards the matrix server")
 
-	isDeactivate := flag.Bool("deactivate", false, "Deactivate an account, requires --user")
+	isDeactivate := flag.Bool("deactivate", false, "Deactivate an account, requires --target")
 	isList := flag.Bool("list", false, "List all users, requires no arguments")
-	isReset := flag.Bool("reset", false, "Reset users account with new password, needs --user and --pass")
-	isQuery := flag.Bool("query", false, "Queries a user and gets its current information, needs --user")
+	isReset := flag.Bool("reset", false, "Reset users account with new password, needs --target and --pass")
+	isQuery := flag.Bool("query", false, "Queries a user and gets its current information, needs --target")
 	targetUser := flag.String("target", "", "The user account to be acted upon (if required)")
 
 	flag.Parse()
