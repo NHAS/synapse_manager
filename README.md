@@ -2,16 +2,14 @@
 Help
 
 ```
-  -deactivate
-    	Deactivate an account, requires --target
+  -deactivate string
+    	Deactivate an account, eg -deactivate @target:matrix.ais
   -list
     	List all users, requires no arguments
-  -query
-    	Queries a user and gets its current information, needs --target
-  -reset
-    	Reset users account with new password, needs --target and --pass
-  -target string
-    	The user account to be acted upon (if required)
+  -query string
+    	Queries a user and gets last ip, user agent, eg -query @target:matrix.ais
+  -reset string
+    	Reset users account with new password, eg -reset @target:matrix.ais
   -url string
     	The URL that points towards the matrix server (default "http://localhost:8008")
 ```
