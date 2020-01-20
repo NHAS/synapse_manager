@@ -108,7 +108,10 @@ func ls(baseURL string, client *http.Client) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(string(body))
+
+	var out bytes.Buffer
+	json.Indent(&out, body, "", "\t")
+	fmt.Println(out.String())
 
 	return err
 }
@@ -129,7 +132,10 @@ func query(baseURL, who string, client *http.Client) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(string(body))
+
+	var out bytes.Buffer
+	json.Indent(&out, body, "", "\t")
+	fmt.Println(out.String())
 
 	return err
 }
