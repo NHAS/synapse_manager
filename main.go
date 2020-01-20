@@ -197,7 +197,7 @@ func main() {
 	isList := flag.Bool("list", false, "List all users, requires no arguments")
 	isReset := flag.Bool("reset", false, "Reset users account with new password, needs --target and --pass")
 	isQuery := flag.Bool("query", false, "Queries a user and gets its current information, needs --target")
-	targetUser := flag.String("target", "", "The user account to be acted upon (if required)")
+	targetUser := flag.String("target", "", "The user account to be acted upon (if required), eg @target:matrix.ais")
 
 	flag.Parse()
 
@@ -229,7 +229,6 @@ func main() {
 	fmt.Print("\n")
 
 	serverString := u.Scheme + "://" + u.Host
-	userString := "@" + *targetUser + ":" + u.Host
 
 	token, err := login(serverString, username, password)
 	if err != nil {
@@ -244,14 +243,14 @@ func main() {
 	}()
 
 	if *isDeactivate {
-		err = deactivate(serverString, userString, client)
+		err = deactivate(serverString, *targetUser, client)
 	} else if *isList {
 		err = ls(serverString, client)
 	} else if *isQuery {
-		err = query(serverString, userString, client)
+		err = query(serverString, *targetUser, client)
 	} else if *isReset {
 		fmt.Print("Enter new user password for ", *targetUser, ": ")
-		err = reset(serverString, userString, getSensitive(), client)
+		err = reset(serverString, *targetUser, getSensitive(), client)
 	}
 
 	if err != nil {
