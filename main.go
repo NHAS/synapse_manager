@@ -170,13 +170,13 @@ func reset(baseURL, who, pass string, client *http.Client) error {
 	}
 	defer resetResponse.Body.Close()
 
-	body, err := ioutil.ReadAll(resetResponse.Body)
+	_, err = ioutil.ReadAll(resetResponse.Body)
 	if err != nil {
 		return err
 	}
-	fmt.Println(string(body))
 
-	return err
+	fmt.Println("Success!")
+	return nil
 }
 
 func getSensitive() string {
@@ -193,11 +193,10 @@ func main() {
 	//
 	serverUrl := flag.String("url", "http://localhost:8008", "The URL that points towards the matrix server")
 
-	isDeactivate := flag.Bool("deactivate", false, "Deactivate an account, requires --target")
-	isList := flag.Bool("list", false, "List all users, requires no arguments")
-	isReset := flag.Bool("reset", false, "Reset users account with new password, needs --target and --pass")
-	isQuery := flag.Bool("query", false, "Queries a user and gets its current information, needs --target")
-	targetUser := flag.String("target", "", "The user account to be acted upon (if required), eg @target:matrix.ais")
+	list := flag.Bool("list", false, "List all users, requires no arguments")
+	deactivateTarget := flag.String("deactivate", "", "Deactivate an account, eg -deactivate @target:matrix.ais")
+	resetTarget := flag.String("reset", "", "Reset users account with new password, eg -reset @target:matrix.ais")
+	queryTarget := flag.String("query", "", "Queries a user and gets last ip, user agent, eg -query @target:matrix.ais")
 
 	flag.Parse()
 
@@ -206,15 +205,9 @@ func main() {
 		log.Fatal("Please enter valid URL")
 	}
 
-	if !*isDeactivate && !*isList && !*isReset && !*isQuery {
+	if len(*deactivateTarget) == 0 && !*list && len(*resetTarget) == 0 && len(*queryTarget) == 0 {
 		flag.PrintDefaults()
 		log.Fatal("Please specify an option")
-
-	}
-
-	if len(*targetUser) == 0 && (*isDeactivate || *isReset || *isQuery) {
-		flag.PrintDefaults()
-		log.Fatal("You need --target to use the option")
 
 	}
 
@@ -242,15 +235,15 @@ func main() {
 		}
 	}()
 
-	if *isDeactivate {
-		err = deactivate(serverString, *targetUser, client)
-	} else if *isList {
+	if len(*deactivateTarget) != 0 {
+		err = deactivate(serverString, *deactivateTarget, client)
+	} else if *list {
 		err = ls(serverString, client)
-	} else if *isQuery {
-		err = query(serverString, *targetUser, client)
-	} else if *isReset {
-		fmt.Print("Enter new user password for ", *targetUser, ": ")
-		err = reset(serverString, *targetUser, getSensitive(), client)
+	} else if len(*queryTarget) != 0 {
+		err = query(serverString, *queryTarget, client)
+	} else if len(*resetTarget) != 0 {
+		fmt.Print("Enter new user password for ", *resetTarget, ": ")
+		err = reset(serverString, *resetTarget, getSensitive(), client)
 	}
 
 	if err != nil {
