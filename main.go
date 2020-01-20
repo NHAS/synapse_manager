@@ -179,6 +179,29 @@ func reset(baseURL, who, pass string, client *http.Client) error {
 	return nil
 }
 
+func purge(baseURL, room string, client *http.Client) error {
+
+	req, err := http.NewRequest("POST", baseURL+"/_synapse/admin/v1/purge_room", bytes.NewBuffer([]byte("{\"room_id\":\""+room+"\"}")))
+	req.Header.Add("Content-Type", "application/json")
+	if err != nil {
+		return err
+	}
+
+	resetResponse, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resetResponse.Body.Close()
+
+	body, err := ioutil.ReadAll(resetResponse.Body)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(string(body))
+	return nil
+}
+
 func getSensitive() string {
 	bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
 	if err != nil {
@@ -197,6 +220,7 @@ func main() {
 	deactivateTarget := flag.String("deactivate", "", "Deactivate an account, eg -deactivate @target:matrix.ais")
 	resetTarget := flag.String("reset", "", "Reset users account with new password, eg -reset @target:matrix.ais")
 	queryTarget := flag.String("query", "", "Queries a user and gets last ip, user agent, eg -query @target:matrix.ais")
+	purgeTarget := flag.String("purge", "", "Purge a room from the database, typically so it can be reclaimed if everyone left, eg -purge !oqhoCmLzNgkVlLgxQp:matrix.ais, this can be found in the database of room_aliases")
 
 	flag.Parse()
 
@@ -205,7 +229,7 @@ func main() {
 		log.Fatal("Please enter valid URL")
 	}
 
-	if len(*deactivateTarget) == 0 && !*list && len(*resetTarget) == 0 && len(*queryTarget) == 0 {
+	if len(*deactivateTarget) == 0 && !*list && len(*resetTarget) == 0 && len(*queryTarget) == 0 && len(*purgeTarget) == 0 {
 		flag.PrintDefaults()
 		log.Fatal("Please specify an option")
 
@@ -244,6 +268,8 @@ func main() {
 	} else if len(*resetTarget) != 0 {
 		fmt.Print("Enter new user password for ", *resetTarget, ": ")
 		err = reset(serverString, *resetTarget, getSensitive(), client)
+	} else if len(*purgeTarget) != 0 {
+		err = purge(serverString, *purgeTarget, client)
 	}
 
 	if err != nil {
