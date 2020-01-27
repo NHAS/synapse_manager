@@ -208,28 +208,64 @@ func purge(baseURL, room string, client *http.Client) error {
 	return nil
 }
 
-func ls_room(baseURL string, client *http.Client) error {
-	req, err := http.NewRequest("GET", baseURL+"/_synapse/admin/v1/rooms", nil)
+type Room struct {
+	Room_id         string
+	Name            string
+	Canonical_alias string
+	Joined_members  int
+}
+
+type RoomsList struct {
+	Offset      int
+	Total_rooms int
+	Rooms       []Room
+}
+
+func autopurge(baseURL string, client *http.Client) error {
+
+	list, err := ls_room(baseURL, client)
+
+	var roomList RoomsList
+	err = json.Unmarshal([]byte(list), &roomList)
 	if err != nil {
 		return err
 	}
 
+	i := 0
+	for _, room := range roomList.Rooms {
+		if room.Joined_members == 0 || (room.Canonical_alias == "" && room.Joined_members > 2) {
+			fmt.Println("Purging: ", room.Room_id)
+			purge(baseURL, room.Room_id, client)
+			i += 1
+		}
+	}
+
+	fmt.Println("Purged ", i, " rooms")
+
+	return err
+}
+
+func ls_room(baseURL string, client *http.Client) (string, error) {
+	req, err := http.NewRequest("GET", baseURL+"/_synapse/admin/v1/rooms", nil)
+	if err != nil {
+		return "", err
+	}
+
 	roomList, err := client.Do(req)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer roomList.Body.Close()
 
 	body, err := ioutil.ReadAll(roomList.Body)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	var out bytes.Buffer
 	json.Indent(&out, body, "", "\t")
-	fmt.Println(out.String())
 
-	return err
+	return out.String(), err
 }
 
 func getSensitive() string {
@@ -247,12 +283,14 @@ func main() {
 	serverUrl := flag.String("url", "http://localhost:8008", "The URL that points towards the matrix server")
 
 	userList := flag.Bool("list", false, "List all users, requires no arguments")
+
 	roomList := flag.Bool("room_list", false, "List all rooms, requires no arguments")
 
 	deactivateTarget := flag.String("deactivate", "", "Deactivate an account, eg -deactivate @target:matrix.ais")
 	resetTarget := flag.String("reset", "", "Reset users account with new password, eg -reset @target:matrix.ais")
 	queryTarget := flag.String("query", "", "Queries a user and gets last ip, user agent, eg -query @target:matrix.ais")
 	purgeTarget := flag.String("purge", "", "Purge a room from the database, typically so it can be reclaimed if everyone left, eg -purge !oqhoCmLzNgkVlLgxQp:matrix.ais, this can be found in the database of room_aliases")
+	autoPurge := flag.Bool("autopurge", false, "Purge all rooms with 0 members joined to them")
 
 	flag.Parse()
 
@@ -261,7 +299,7 @@ func main() {
 		log.Fatal("Please enter valid URL")
 	}
 
-	if len(*deactivateTarget) == 0 && !*userList && len(*resetTarget) == 0 && len(*queryTarget) == 0 && len(*purgeTarget) == 0 && !*roomList {
+	if len(*deactivateTarget) == 0 && !*userList && len(*resetTarget) == 0 && len(*queryTarget) == 0 && len(*purgeTarget) == 0 && !*roomList && !*autoPurge {
 		flag.PrintDefaults()
 		log.Fatal("Please specify an option")
 
@@ -303,7 +341,11 @@ func main() {
 	} else if len(*purgeTarget) != 0 {
 		err = purge(serverString, *purgeTarget, client)
 	} else if *roomList {
-		err = ls_room(serverString, client)
+		var rooms string
+		rooms, err = ls_room(serverString, client)
+		fmt.Println(rooms)
+	} else if *autoPurge {
+		err = autopurge(serverString, client)
 	}
 
 	if err != nil {
