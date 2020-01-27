@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -204,6 +205,10 @@ func purge(baseURL, room string, client *http.Client) error {
 		return err
 	}
 
+	if bytes.Contains(body, []byte("errcode")) {
+		return errors.New("Unable to purge room due: " + string(body))
+	}
+
 	fmt.Println(string(body))
 	return nil
 }
@@ -235,14 +240,20 @@ func autopurge(baseURL string, client *http.Client) error {
 	for _, room := range roomList.Rooms {
 		if room.Joined_members == 0 || (room.Canonical_alias == "" && room.Joined_members > 2) {
 			fmt.Println("Purging: ", room.Room_id)
-			purge(baseURL, room.Room_id, client)
+			err = purge(baseURL, room.Room_id, client)
+			if err != nil {
+				fmt.Println(err)
+			}
+			continue
+
 			i += 1
+
 		}
 	}
 
 	fmt.Println("Purged ", i, " rooms")
 
-	return err
+	return nil
 }
 
 func ls_room(baseURL string, client *http.Client) (string, error) {
