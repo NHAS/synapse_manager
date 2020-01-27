@@ -208,6 +208,30 @@ func purge(baseURL, room string, client *http.Client) error {
 	return nil
 }
 
+func ls_room(baseURL string, client *http.Client) error {
+	req, err := http.NewRequest("GET", baseURL+"/_synapse/admin/v1/rooms", nil)
+	if err != nil {
+		return err
+	}
+
+	roomList, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer roomList.Body.Close()
+
+	body, err := ioutil.ReadAll(roomList.Body)
+	if err != nil {
+		return err
+	}
+
+	var out bytes.Buffer
+	json.Indent(&out, body, "", "\t")
+	fmt.Println(out.String())
+
+	return err
+}
+
 func getSensitive() string {
 	bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
 	if err != nil {
@@ -222,7 +246,9 @@ func main() {
 	//
 	serverUrl := flag.String("url", "http://localhost:8008", "The URL that points towards the matrix server")
 
-	list := flag.Bool("list", false, "List all users, requires no arguments")
+	userList := flag.Bool("list", false, "List all users, requires no arguments")
+	roomList := flag.Bool("room_list", false, "List all rooms, requires no arguments")
+
 	deactivateTarget := flag.String("deactivate", "", "Deactivate an account, eg -deactivate @target:matrix.ais")
 	resetTarget := flag.String("reset", "", "Reset users account with new password, eg -reset @target:matrix.ais")
 	queryTarget := flag.String("query", "", "Queries a user and gets last ip, user agent, eg -query @target:matrix.ais")
@@ -235,7 +261,7 @@ func main() {
 		log.Fatal("Please enter valid URL")
 	}
 
-	if len(*deactivateTarget) == 0 && !*list && len(*resetTarget) == 0 && len(*queryTarget) == 0 && len(*purgeTarget) == 0 {
+	if len(*deactivateTarget) == 0 && !*userList && len(*resetTarget) == 0 && len(*queryTarget) == 0 && len(*purgeTarget) == 0 && !*roomList {
 		flag.PrintDefaults()
 		log.Fatal("Please specify an option")
 
@@ -267,7 +293,7 @@ func main() {
 
 	if len(*deactivateTarget) != 0 {
 		err = deactivate(serverString, *deactivateTarget, client)
-	} else if *list {
+	} else if *userList {
 		err = ls(serverString, client)
 	} else if len(*queryTarget) != 0 {
 		err = query(serverString, *queryTarget, client)
@@ -276,6 +302,8 @@ func main() {
 		err = reset(serverString, *resetTarget, getSensitive(), client)
 	} else if len(*purgeTarget) != 0 {
 		err = purge(serverString, *purgeTarget, client)
+	} else if *roomList {
+		err = ls_room(serverString, client)
 	}
 
 	if err != nil {
