@@ -238,13 +238,13 @@ func autopurge(baseURL string, client *http.Client) error {
 
 	i := 0
 	for _, room := range roomList.Rooms {
-		if room.Joined_members == 0 || (room.Canonical_alias == "" && room.Joined_members > 2) {
+		if room.Joined_members == 0 {
 			fmt.Println("Purging: ", room.Room_id)
 			err = purge(baseURL, room.Room_id, client)
 			if err != nil {
 				fmt.Println(err)
+				continue
 			}
-			continue
 
 			i += 1
 
