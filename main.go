@@ -296,7 +296,7 @@ func main() {
 
 	userList := flag.Bool("list", false, "List all users, requires no arguments")
 
-	roomList := flag.Bool("room_list", false, "List all rooms, requires no arguments")
+	roomList := flag.Bool("list_rooms", false, "List all rooms, requires no arguments")
 
 	deactivateTarget := flag.String("deactivate", "", "Deactivate an account, eg -deactivate @target:matrix.ais")
 	resetTarget := flag.String("reset", "", "Reset users account with new password, eg -reset @target:matrix.ais")
