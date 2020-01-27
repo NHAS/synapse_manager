@@ -43,6 +43,7 @@ type authorisationHeaderTransport struct {
 	authToken           string
 }
 
+//Apply auth token to each request we have to make
 func (t *authorisationHeaderTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req.Header.Add("Authorization", "Bearer "+t.authToken)
 	return t.underlyingTransport.RoundTrip(req)
@@ -118,7 +119,7 @@ func ls(baseURL string, client *http.Client) error {
 }
 
 func query(baseURL, who string, client *http.Client) error {
-	req, err := http.NewRequest("GET", baseURL+"/_synapse/admin/v1/whois/"+who, nil)
+	req, err := http.NewRequest("GET", baseURL+"/_synapse/admin/v1/whois/"+who, nil) // This call is set to be depricated, however the stated replacement doesnt work as of synapse 1.9.0
 	if err != nil {
 		return err
 	}
@@ -206,7 +207,7 @@ func purge(baseURL, room string, client *http.Client) error {
 	}
 
 	if bytes.Contains(body, []byte("errcode")) {
-		return errors.New("Unable to purge room due: " + string(body))
+		return errors.New("Unable to purge room: " + string(body))
 	}
 
 	fmt.Println(string(body))
@@ -238,11 +239,11 @@ func autopurge(baseURL string, client *http.Client) error {
 
 	i := 0
 	for _, room := range roomList.Rooms {
-		if room.Joined_members == 0 {
+		if room.Joined_members == 0 { // Currently you can only destroy rooms with 0 members
 			fmt.Println("Purging: ", room.Room_id)
 			err = purge(baseURL, room.Room_id, client)
 			if err != nil {
-				fmt.Println(err)
+				fmt.Println(err) // Typically the only errors we get here are that there are people in the room, so non-fatal
 				continue
 			}
 
@@ -274,13 +275,13 @@ func ls_room(baseURL string, client *http.Client) (string, error) {
 	}
 
 	var out bytes.Buffer
-	json.Indent(&out, body, "", "\t")
+	json.Indent(&out, body, "", "\t") // Format json so a human can read it
 
 	return out.String(), err
 }
 
 func getSensitive() string {
-	bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
+	bytePassword, err := terminal.ReadPassword(int(syscall.Stdin)) // Turns off stdin echo
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -290,7 +291,7 @@ func getSensitive() string {
 }
 
 func main() {
-	//
+
 	serverUrl := flag.String("url", "http://localhost:8008", "The URL that points towards the matrix server")
 
 	userList := flag.Bool("list", false, "List all users, requires no arguments")
@@ -318,12 +319,12 @@ func main() {
 
 	reader := bufio.NewReader(os.Stdin)
 
-	fmt.Print("Admin username: ")
+	fmt.Print("Synapse admin username: ")
 	username, _ := reader.ReadString('\n')
 	username = strings.TrimSpace(username)
 
-	fmt.Print("Admin password: ")
-	password := getSensitive()
+	fmt.Print("Synapse admin password: ")
+	password := getSensitive() // Turn off echoing of stdin
 	fmt.Print("\n")
 
 	serverString := u.Scheme + "://" + u.Host
@@ -333,6 +334,7 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// Once we have the auth token, apply it to every API call we make, and destroy it after
 	client := &http.Client{Transport: &authorisationHeaderTransport{underlyingTransport: http.DefaultTransport, authToken: token}}
 	defer func() {
 		if err := logout(serverString, client); err != nil {
