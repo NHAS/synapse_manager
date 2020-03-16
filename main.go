@@ -81,6 +81,10 @@ func login(baseURL, user, pass string) (string, error) {
 		return "", err
 	}
 
+	if len(authResp.AccessToken) == 0 {
+		return "", errors.New("Access token was empty for some reason. " + string(body))
+	}
+
 	return authResp.AccessToken, nil
 
 }
@@ -240,17 +244,18 @@ func autopurge(baseURL string, client *http.Client) error {
 	i := 0
 	for _, room := range roomList.Rooms {
 
-		if room.Canonical_alias == "#pentest:matrix.ais" {
-			fmt.Print("\nLooks like autopurge is trying to purge #pentest:matrix.ais (", room.Room_id, "), are you sure you want to do this? [N/y] ")
-			var response string
-			_, err = fmt.Scanln(&response)
-			response = strings.TrimSpace(response)
-			if response != "y" && response != "Y" {
-				continue
-			}
-		}
-
 		if room.Joined_members == 0 { // Currently you can only destroy rooms with 0 members
+
+			if room.Canonical_alias == "#pentest:matrix.ais" {
+				fmt.Print("\nLooks like autopurge is trying to purge #pentest:matrix.ais (", room.Room_id, "), are you sure you want to do this? [N/y] ")
+				var response string
+				_, err = fmt.Scanln(&response)
+				response = strings.TrimSpace(response)
+				if response != "y" && response != "Y" {
+					continue
+				}
+			}
+
 			fmt.Println("Purging: ", room.Room_id)
 			err = purge(baseURL, room.Room_id, client)
 			if err != nil {
