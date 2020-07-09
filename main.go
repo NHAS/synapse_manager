@@ -43,6 +43,21 @@ type authorisationHeaderTransport struct {
 	authToken           string
 }
 
+type Room struct {
+	Room_id         string
+	Name            string
+	Canonical_alias string
+	Creator         string `json:"creator"`
+	Encryption      string `json:"encryption"`
+	JoinedMembers   int    `json:"joined_local_members"`
+}
+
+type RoomsList struct {
+	Offset      int
+	Total_rooms int
+	Rooms       []Room
+}
+
 //Apply auth token to each request we have to make
 func (t *authorisationHeaderTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req.Header.Add("Authorization", "Bearer "+t.authToken)
@@ -218,19 +233,6 @@ func purge(baseURL, room string, client *http.Client) error {
 	return nil
 }
 
-type Room struct {
-	Room_id         string
-	Name            string
-	Canonical_alias string
-	Joined_members  int
-}
-
-type RoomsList struct {
-	Offset      int
-	Total_rooms int
-	Rooms       []Room
-}
-
 func autopurge(baseURL string, client *http.Client) error {
 
 	list, err := ls_room(baseURL, client)
@@ -244,7 +246,7 @@ func autopurge(baseURL string, client *http.Client) error {
 	i := 0
 	for _, room := range roomList.Rooms {
 
-		if room.Joined_members == 0 { // Currently you can only destroy rooms with 0 members
+		if room.JoinedMembers == 0 { // Currently you can only destroy rooms with 0 members
 
 			if room.Canonical_alias == "#pentest:matrix.ais" {
 				fmt.Print("\nLooks like autopurge is trying to purge #pentest:matrix.ais (", room.Room_id, "), are you sure you want to do this? [N/y] ")
@@ -296,6 +298,31 @@ func ls_room(baseURL string, client *http.Client) (string, error) {
 	return out.String(), err
 }
 
+func checkEncrypt(baseURL string, client *http.Client) error {
+	rooms, err := ls_room(baseURL, client)
+	if err != nil {
+		return err
+	}
+
+	var rl RoomsList
+	err = json.Unmarshal([]byte(rooms), &rl)
+	if err != nil {
+		return err
+	}
+
+	for _, v := range rl.Rooms {
+		if !strings.Contains(v.Encryption, "olm") {
+
+			log.Println("Room Id: ", v.Room_id)
+			log.Println("Name: ", v.Name)
+			log.Println("Creator: ", v.Creator)
+			log.Println("Encryption: ", v.Encryption)
+
+		}
+	}
+	return nil
+}
+
 func getSensitive() string {
 	bytePassword, err := terminal.ReadPassword(int(syscall.Stdin)) // Turns off stdin echo
 	if err != nil {
@@ -310,15 +337,16 @@ func main() {
 
 	serverUrl := flag.String("url", "http://localhost:8008", "The URL that points towards the matrix server")
 
-	userList := flag.Bool("list", false, "List all users, requires no arguments")
+	userList := flag.Bool("ls_users", false, "List all users, requires no arguments")
 
-	roomList := flag.Bool("list_rooms", false, "List all rooms, requires no arguments")
+	roomList := flag.Bool("ls_rooms", false, "List all rooms, requires no arguments")
+	autoPurge := flag.Bool("auto_purge", false, "Purge all rooms with 0 members joined to them")
+	checkEncryption := flag.Bool("check_encryption", false, "Check encryption is enabled on all rooms, prints any room without encryption")
 
 	deactivateTarget := flag.String("deactivate", "", "Deactivate an account, eg -deactivate @target:matrix.ais")
 	resetTarget := flag.String("reset", "", "Reset users account with new password, eg -reset @target:matrix.ais")
 	queryTarget := flag.String("query", "", "Queries a user and gets last ip, user agent, eg -query @target:matrix.ais")
 	purgeTarget := flag.String("purge", "", "Purge a room from the database, typically so it can be reclaimed if everyone left, eg -purge !oqhoCmLzNgkVlLgxQp:matrix.ais, this can be found in the database of room_aliases")
-	autoPurge := flag.Bool("autopurge", false, "Purge all rooms with 0 members joined to them")
 
 	flag.Parse()
 
@@ -327,7 +355,7 @@ func main() {
 		log.Fatal("Please enter valid URL")
 	}
 
-	if len(*deactivateTarget) == 0 && !*userList && len(*resetTarget) == 0 && len(*queryTarget) == 0 && len(*purgeTarget) == 0 && !*roomList && !*autoPurge {
+	if len(*deactivateTarget) == 0 && !*userList && len(*resetTarget) == 0 && len(*queryTarget) == 0 && len(*purgeTarget) == 0 && !*checkEncryption && !*roomList && !*autoPurge {
 		flag.PrintDefaults()
 		log.Fatal("Please specify an option")
 
@@ -335,11 +363,11 @@ func main() {
 
 	reader := bufio.NewReader(os.Stdin)
 
-	fmt.Print("Synapse admin username: ")
+	fmt.Fprint(os.Stderr, "Synapse admin username: ")
 	username, _ := reader.ReadString('\n')
 	username = strings.TrimSpace(username)
 
-	fmt.Print("Synapse admin password: ")
+	fmt.Fprint(os.Stderr, "Synapse admin password: ")
 	password := getSensitive() // Turn off echoing of stdin
 	fmt.Print("\n")
 
@@ -375,6 +403,8 @@ func main() {
 		fmt.Println(rooms)
 	} else if *autoPurge {
 		err = autopurge(serverString, client)
+	} else if *checkEncryption {
+		err = checkEncrypt(serverString, client)
 	}
 
 	if err != nil {
