@@ -258,30 +258,45 @@ func autodelete(baseURL string, client *http.Client) error {
 		return err
 	}
 
+	type roomDetails struct {
+		name   string
+		roomID string
+	}
+
+	var roomsToDelete []roomDetails
+
 	i := 0
 	for _, room := range listRooms.Rooms {
 
 		if room.JoinedMembers == 0 { // Currently you can only destroy rooms with 0 members
-
 			if _, ok := protected[strings.TrimSpace(room.Canonical_alias)]; ok {
-				fmt.Print("\nLooks like autodelete is trying to delete protected room ", room.Canonical_alias, "(", room.Room_id, "), are you sure you want to do this? [N/y] ")
-				var response string
-				_, err = fmt.Scanln(&response)
-				response = strings.TrimSpace(response)
-				if response != "y" && response != "Y" {
-					continue
-				}
+				fmt.Print("\nLooks like autodelete is trying to delete protected room ", room.Canonical_alias, "(", room.Room_id, "). Unable to delete protected rooms as failsafe")
+				return nil
 			}
-
-			fmt.Println("Deleting: ", room.Room_id)
-			err = delete(baseURL, room.Room_id, client)
-			if err != nil {
-				fmt.Println(err) // Typically the only errors we get here are that there are people in the room, so non-fatal
-				continue
-			}
+			roomsToDelete = append(roomsToDelete, roomDetails{room.Name, room.Room_id})
 
 			i++
+		}
+	}
 
+	fmt.Println(i, " rooms to delete")
+	for _, m := range roomsToDelete {
+		fmt.Println("\t", m.name, ":", m.roomID)
+	}
+	fmt.Print("Continue? (N/y) ")
+
+	var response string
+	_, err = fmt.Scanln(&response)
+	response = strings.TrimSpace(response)
+	if response != "y" && response != "Y" {
+		return nil
+	}
+
+	for _, m := range roomsToDelete {
+		fmt.Println("Deleting ", m.roomID)
+		err := delete(baseURL, m.roomID, client)
+		if err != nil {
+			log.Println("\t", err)
 		}
 	}
 
