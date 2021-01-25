@@ -206,9 +206,9 @@ func reset(baseURL, who, pass string, client *http.Client) error {
 	return nil
 }
 
-func purge(baseURL, room string, client *http.Client) error {
+func delete(baseURL, room string, client *http.Client) error {
 
-	req, err := http.NewRequest("POST", baseURL+"/_synapse/admin/v1/purge_room", bytes.NewBuffer([]byte("{\"room_id\":\""+room+"\"}")))
+	req, err := http.NewRequest("POST", baseURL+"/_synapse/admin/v1/rooms/"+room+"/delete", bytes.NewBuffer([]byte("{}"))
 	req.Header.Add("Content-Type", "application/json")
 	if err != nil {
 		return err
@@ -226,30 +226,30 @@ func purge(baseURL, room string, client *http.Client) error {
 	}
 
 	if bytes.Contains(body, []byte("errcode")) {
-		return errors.New("Unable to purge room: " + string(body))
+		return errors.New("Unable to delete room: " + string(body))
 	}
 
 	fmt.Println(string(body))
 	return nil
 }
 
-func autopurge(baseURL string, client *http.Client) error {
+func autodelete(baseURL string, client *http.Client) error {
 
 	list, err := ls_room(baseURL, client)
 
-	var roomList RoomsList
-	err = json.Unmarshal([]byte(list), &roomList)
+	var listRooms RoomsList
+	err = json.Unmarshal([]byte(list), &listRooms)
 	if err != nil {
 		return err
 	}
 
 	i := 0
-	for _, room := range roomList.Rooms {
+	for _, room := range listRooms.Rooms {
 
 		if room.JoinedMembers == 0 { // Currently you can only destroy rooms with 0 members
 
 			if room.Canonical_alias == "#pentest:matrix.ais" {
-				fmt.Print("\nLooks like autopurge is trying to purge #pentest:matrix.ais (", room.Room_id, "), are you sure you want to do this? [N/y] ")
+				fmt.Print("\nLooks like autodelete is trying to delete #pentest:matrix.ais (", room.Room_id, "), are you sure you want to do this? [N/y] ")
 				var response string
 				_, err = fmt.Scanln(&response)
 				response = strings.TrimSpace(response)
@@ -258,19 +258,19 @@ func autopurge(baseURL string, client *http.Client) error {
 				}
 			}
 
-			fmt.Println("Purging: ", room.Room_id)
-			err = purge(baseURL, room.Room_id, client)
+			fmt.Println("Deleting: ", room.Room_id)
+			err = delete(baseURL, room.Room_id, client)
 			if err != nil {
 				fmt.Println(err) // Typically the only errors we get here are that there are people in the room, so non-fatal
 				continue
 			}
 
-			i += 1
+			i++
 
 		}
 	}
 
-	fmt.Println("Purged ", i, " rooms")
+	fmt.Println("Deleted ", i, " rooms")
 
 	return nil
 }
@@ -281,13 +281,13 @@ func ls_room(baseURL string, client *http.Client) (string, error) {
 		return "", err
 	}
 
-	roomList, err := client.Do(req)
+	listRooms, err := client.Do(req)
 	if err != nil {
 		return "", err
 	}
-	defer roomList.Body.Close()
+	defer listRooms.Body.Close()
 
-	body, err := ioutil.ReadAll(roomList.Body)
+	body, err := ioutil.ReadAll(listRooms.Body)
 	if err != nil {
 		return "", err
 	}
@@ -339,14 +339,14 @@ func main() {
 
 	userList := flag.Bool("ls_users", false, "List all users, requires no arguments")
 
-	roomList := flag.Bool("ls_rooms", false, "List all rooms, requires no arguments")
-	autoPurge := flag.Bool("auto_purge", false, "Purge all rooms with 0 members joined to them")
+	listRooms := flag.Bool("ls_rooms", false, "List all rooms, requires no arguments")
+	autoDelete := flag.Bool("auto_delete", false, "Delete all rooms with 0 members joined to them")
 	checkEncryption := flag.Bool("check_encryption", false, "Check encryption is enabled on all rooms, prints any room without encryption")
 
 	deactivateTarget := flag.String("deactivate", "", "Deactivate an account, eg -deactivate @target:matrix.ais")
 	resetTarget := flag.String("reset", "", "Reset users account with new password, eg -reset @target:matrix.ais")
 	queryTarget := flag.String("query", "", "Queries a user and gets last ip, user agent, eg -query @target:matrix.ais")
-	purgeTarget := flag.String("purge", "", "Purge a room from the database, typically so it can be reclaimed if everyone left, eg -purge !oqhoCmLzNgkVlLgxQp:matrix.ais, this can be found in the database of room_aliases")
+	deleteTarget := flag.String("delete", "", "Delete a room from the database, typically so it can be reclaimed if everyone left, eg -delete !oqhoCmLzNgkVlLgxQp:matrix.ais, this can be found in the database of room_aliases")
 
 	flag.Parse()
 
@@ -355,7 +355,7 @@ func main() {
 		log.Fatal("Please enter valid URL")
 	}
 
-	if len(*deactivateTarget) == 0 && !*userList && len(*resetTarget) == 0 && len(*queryTarget) == 0 && len(*purgeTarget) == 0 && !*checkEncryption && !*roomList && !*autoPurge {
+	if len(*deactivateTarget) == 0 && !*userList && len(*resetTarget) == 0 && len(*queryTarget) == 0 && len(*deleteTarget) == 0 && !*checkEncryption && !*listRooms && !*autoDelete {
 		flag.PrintDefaults()
 		log.Fatal("Please specify an option")
 
@@ -395,14 +395,14 @@ func main() {
 	} else if len(*resetTarget) != 0 {
 		fmt.Print("Enter new user password for ", *resetTarget, ": ")
 		err = reset(serverString, *resetTarget, getSensitive(), client)
-	} else if len(*purgeTarget) != 0 {
-		err = purge(serverString, *purgeTarget, client)
-	} else if *roomList {
+	} else if len(*deleteTarget) != 0 {
+		err = delete(serverString, *deleteTarget, client)
+	} else if *listRooms {
 		var rooms string
 		rooms, err = ls_room(serverString, client)
 		fmt.Println(rooms)
-	} else if *autoPurge {
-		err = autopurge(serverString, client)
+	} else if *autoDelete {
+		err = autodelete(serverString, client)
 	} else if *checkEncryption {
 		err = checkEncrypt(serverString, client)
 	}
