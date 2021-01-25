@@ -19,6 +19,21 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
+var protected = map[string]bool{
+	"#pentest:matrix.ais":      true,
+	"#pentest-help:matrix.ais": true,
+	"#scoping:matrix.ais":      true,
+	"#noot:matrix.ais":         true,
+	"#oscx:matrix.ais":         true,
+	"#poltics:matrix.ais":      true,
+	"#reporting:matrix.ais":    true,
+	"#sot:matrix.ais":          true,
+	"#vso:matrix.ais":          true,
+	"#wellington:matrix.ais":   true,
+	"#phishing:matrix.ais":     true,
+	"#aws:matrix.ais":          true,
+}
+
 type Identifier struct {
 	IdentifierType string `json:"type"` //"type": "m.id.user"
 	User           string `json:"user"` //  "user": "<user_id or user localpart>"
@@ -208,7 +223,7 @@ func reset(baseURL, who, pass string, client *http.Client) error {
 
 func delete(baseURL, room string, client *http.Client) error {
 
-	req, err := http.NewRequest("POST", baseURL+"/_synapse/admin/v1/rooms/"+room+"/delete", bytes.NewBuffer([]byte("{}"))
+	req, err := http.NewRequest("POST", baseURL+"/_synapse/admin/v1/rooms/"+room+"/delete", bytes.NewBuffer([]byte("{}")))
 	req.Header.Add("Content-Type", "application/json")
 	if err != nil {
 		return err
@@ -248,8 +263,8 @@ func autodelete(baseURL string, client *http.Client) error {
 
 		if room.JoinedMembers == 0 { // Currently you can only destroy rooms with 0 members
 
-			if room.Canonical_alias == "#pentest:matrix.ais" {
-				fmt.Print("\nLooks like autodelete is trying to delete #pentest:matrix.ais (", room.Room_id, "), are you sure you want to do this? [N/y] ")
+			if _, ok := protected[strings.TrimSpace(room.Canonical_alias)]; ok {
+				fmt.Print("\nLooks like autodelete is trying to delete protected room ", room.Canonical_alias, "(", room.Room_id, "), are you sure you want to do this? [N/y] ")
 				var response string
 				_, err = fmt.Scanln(&response)
 				response = strings.TrimSpace(response)
