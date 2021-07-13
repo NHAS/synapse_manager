@@ -353,6 +353,38 @@ func checkEncrypt(baseURL string, client *http.Client) error {
 	return nil
 }
 
+func forceJoin(baseURL, userName, room string, client *http.Client) error {
+
+	user := struct {
+		UserID string `json:"user_id"`
+	}{
+		UserID: userName,
+	}
+
+	b, err := json.Marshal(&user)
+	if err != nil {
+		return err
+	}
+
+	listRooms, err := client.Post(baseURL+"/_synapse/admin/v1/join/"+room, "application/json", bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	defer listRooms.Body.Close()
+
+	body, err := ioutil.ReadAll(listRooms.Body)
+	if err != nil {
+		return err
+	}
+
+	var out bytes.Buffer
+	json.Indent(&out, body, "", "\t") // Format json so a human can read it
+
+	fmt.Println(out.String())
+
+	return err
+}
+
 func getSensitive() string {
 	bytePassword, err := terminal.ReadPassword(int(syscall.Stdin)) // Turns off stdin echo
 	if err != nil {
@@ -377,6 +409,7 @@ func main() {
 	resetTarget := flag.String("reset", "", "Reset users account with new password, eg -reset @target:matrix.ais")
 	queryTarget := flag.String("query", "", "Queries a user and gets last ip, user agent, eg -query @target:matrix.ais")
 	deleteTarget := flag.String("delete", "", "Delete a room from the database, typically so it can be reclaimed if everyone left, eg -delete !oqhoCmLzNgkVlLgxQp:matrix.ais, this can be found in the database of room_aliases")
+	forceJoinTarget := flag.String("join", "", "Target join to a room, e.g -forceJoinTarget @target:matrix.ais")
 
 	flag.Parse()
 
@@ -385,7 +418,7 @@ func main() {
 		log.Fatal("Please enter valid URL")
 	}
 
-	if len(*deactivateTarget) == 0 && !*userList && len(*resetTarget) == 0 && len(*queryTarget) == 0 && len(*deleteTarget) == 0 && !*checkEncryption && !*listRooms && !*autoDelete {
+	if len(*forceJoinTarget) == 0 && len(*deactivateTarget) == 0 && !*userList && len(*resetTarget) == 0 && len(*queryTarget) == 0 && len(*deleteTarget) == 0 && !*checkEncryption && !*listRooms && !*autoDelete {
 		flag.PrintDefaults()
 		log.Fatal("Please specify an option")
 
@@ -435,6 +468,12 @@ func main() {
 		err = autodelete(serverString, client)
 	} else if *checkEncryption {
 		err = checkEncrypt(serverString, client)
+	} else if len(*forceJoinTarget) != 0 {
+		fmt.Fprint(os.Stderr, "Room to join: ")
+		room, _ := reader.ReadString('\n')
+		room = strings.TrimSpace(room)
+
+		err = forceJoin(serverString, *forceJoinTarget, room, client)
 	}
 
 	if err != nil {
