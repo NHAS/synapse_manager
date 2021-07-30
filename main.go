@@ -15,6 +15,7 @@ import (
 	"os"
 	"strings"
 	"syscall"
+	"time"
 
 	"golang.org/x/crypto/ssh/terminal"
 )
@@ -385,6 +386,27 @@ func forceJoin(baseURL, userName, room string, client *http.Client) error {
 	return err
 }
 
+func deleteOldContent(baseURL string, client *http.Client) error {
+
+	clearContent, err := client.Post(fmt.Sprintf("%s/_synapse/admin/v1/media/matrix.ais/delete?before_ts=%d", baseURL, time.Now().Unix()-604800), "application/json", bytes.NewReader([]byte("{}")))
+	if err != nil {
+		return err
+	}
+	defer clearContent.Body.Close()
+
+	body, err := ioutil.ReadAll(clearContent.Body)
+	if err != nil {
+		return err
+	}
+
+	var out bytes.Buffer
+	json.Indent(&out, body, "", "\t") // Format json so a human can read it
+
+	fmt.Println(out.String())
+
+	return err
+}
+
 func getSensitive() string {
 	bytePassword, err := terminal.ReadPassword(int(syscall.Stdin)) // Turns off stdin echo
 	if err != nil {
@@ -411,6 +433,8 @@ func main() {
 	deleteTarget := flag.String("delete", "", "Delete a room from the database, typically so it can be reclaimed if everyone left, eg -delete !oqhoCmLzNgkVlLgxQp:matrix.ais, this can be found in the database of room_aliases")
 	forceJoinTarget := flag.String("join", "", "Target join to a room, e.g -forceJoinTarget @target:matrix.ais")
 
+	deleteContent := flag.Bool("delete_old_content", false, "Delete all local content on the server older than a week")
+
 	flag.Parse()
 
 	u, err := url.Parse(*serverUrl)
@@ -418,7 +442,7 @@ func main() {
 		log.Fatal("Please enter valid URL")
 	}
 
-	if len(*forceJoinTarget) == 0 && len(*deactivateTarget) == 0 && !*userList && len(*resetTarget) == 0 && len(*queryTarget) == 0 && len(*deleteTarget) == 0 && !*checkEncryption && !*listRooms && !*autoDelete {
+	if !*deleteContent && len(*forceJoinTarget) == 0 && len(*deactivateTarget) == 0 && !*userList && len(*resetTarget) == 0 && len(*queryTarget) == 0 && len(*deleteTarget) == 0 && !*checkEncryption && !*listRooms && !*autoDelete {
 		flag.PrintDefaults()
 		log.Fatal("Please specify an option")
 
@@ -474,6 +498,8 @@ func main() {
 		room = strings.TrimSpace(room)
 
 		err = forceJoin(serverString, *forceJoinTarget, room, client)
+	} else if *deleteContent {
+		err = deleteOldContent(serverString, client)
 	}
 
 	if err != nil {
