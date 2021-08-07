@@ -388,7 +388,7 @@ func forceJoin(baseURL, userName, room string, client *http.Client) error {
 
 func deleteOldContent(baseURL string, client *http.Client) error {
 
-	clearContent, err := client.Post(fmt.Sprintf("%s/_synapse/admin/v1/media/matrix.ais/delete?before_ts=%d", baseURL, time.Now().Unix()-604800), "application/json", bytes.NewReader([]byte("{}")))
+	clearContent, err := client.Post(fmt.Sprintf("%s/_synapse/admin/v1/media/matrix.ais/delete?before_ts=%d", baseURL, time.Now().UnixNano()-604800), "application/json", bytes.NewReader([]byte("{}")))
 	if err != nil {
 		return err
 	}
