@@ -154,7 +154,7 @@ func ls(baseURL string, client *http.Client) error {
 }
 
 func query(baseURL, who string, client *http.Client) error {
-	req, err := http.NewRequest("GET", baseURL+"/_synapse/admin/v1/whois/"+who, nil) // This call is set to be depricated, however the stated replacement doesnt work as of synapse 1.9.0
+	req, err := http.NewRequest("GET", baseURL+"/_synapse/admin/v2/users/"+who, nil) // This call is set to be depricated, however the stated replacement doesnt work as of synapse 1.9.0
 	if err != nil {
 		return err
 	}
@@ -201,7 +201,17 @@ func deactivate(baseURL, who string, client *http.Client) error {
 
 func reset(baseURL, who, pass string, client *http.Client) error {
 
-	req, err := http.NewRequest("POST", baseURL+"/_synapse/admin/v1/reset_password/"+who, bytes.NewBuffer([]byte("{\"new_password\":\""+pass+"\"}")))
+	userAttr := struct {
+		Password    string `json:"password"`
+		Deactivated bool   `json:"deactivated"`
+	}{
+		Password:    pass,
+		Deactivated: false,
+	}
+
+	b, _ := json.Marshal(&userAttr)
+
+	req, err := http.NewRequest("PUT", baseURL+"/_synapse/admin/v2/users/"+who, bytes.NewReader(b))
 	req.Header.Add("Content-Type", "application/json")
 	if err != nil {
 		return err
@@ -213,12 +223,12 @@ func reset(baseURL, who, pass string, client *http.Client) error {
 	}
 	defer resetResponse.Body.Close()
 
-	_, err = ioutil.ReadAll(resetResponse.Body)
+	b, err = ioutil.ReadAll(resetResponse.Body)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("Success!")
+	fmt.Println(string(b))
 	return nil
 }
 
